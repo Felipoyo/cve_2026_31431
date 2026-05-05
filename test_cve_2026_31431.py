@@ -20,7 +20,7 @@ import socket
 import struct
 import sys
 import tempfile
-
+import subprocess
 AF_ALG                    = 38
 SOL_ALG                   = 279
 ALG_SET_KEY               = 1
@@ -142,9 +142,28 @@ def kernel_in_affected_line() -> bool:
     except (ValueError, IndexError):
         return False
     return (major, minor) >= (6, 12)
-
+    
+def check_workaround() -> bool:
+    """
+    Checks if the algif_aead module is disabled via modprobe configuration.
+    """
+    try:
+        # Runs 'modprobe -c' and checks if algif_aead is blacklisted/installed to false
+        result = subprocess.check_output(["modprobe", "-c"], stderr=subprocess.DEVNULL).decode()
+        for line in result.splitlines():
+            if "algif_aead" in line and ("/bin/false" in line or "/bin/true" in line):
+                return True
+    except Exception:
+        pass
+    return False
 
 def main() -> int:
+    print(f"[*] CVE-2026-31431 detector  kernel={os.uname().release}  "
+          f"arch={os.uname().machine}")
+    if check_workaround():
+        print("[+] Workaround detected: The algif_aead module is disabled.")
+        print("[+] The system is NOT vulnerable via this vector.")
+    if not kernel_in_affected_line():
     print(f"[*] CVE-2026-31431 detector  kernel={os.uname().release}  "
           f"arch={os.uname().machine}")
     if not kernel_in_affected_line():
